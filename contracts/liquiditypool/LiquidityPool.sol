@@ -196,7 +196,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "native denom has no value");
 
         // 200% collateral value
-        uint256 _amount = rewards.div(2).mul(tokenValue);
+        uint256 _amount = rewards.mul(tokenValue).div(3);
         uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
@@ -220,7 +220,7 @@ contract LiquidityPool is ReentrancyGuard {
         uint256 tokenValue = IFPrice(oAddress()).getPrice(fAddress());
         require(tokenValue > 0, "native denom has no value");
 
-        uint256 _amount = rewards.div(2).mul(tokenValue);
+        uint256 _amount = rewards.mul(tokenValue).div(3);
         uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
@@ -296,6 +296,7 @@ contract LiquidityPool is ReentrancyGuard {
     }
 
     // Fee 0.25%
+    // Can't buy or sell native denom or fUSD
     function buy(address _token, uint256 _amount)
         external
         nonReentrant
@@ -327,6 +328,7 @@ contract LiquidityPool is ReentrancyGuard {
 
     // Sell an owned asset for fusd
     // Fee 0.25%
+    // Can't buy or sell native denom or fUSD
     function sell(address _token, uint256 _amount)
         external
         nonReentrant
