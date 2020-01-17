@@ -1,7 +1,7 @@
 {
   "name": "xar-dlp",
   "version": "1.0.0",
-  "description": "xar decentralized lending platform",
+  "description": "fantom decentralized lending platform",
   "scripts": {
     "lint": "npm run eslint && npm run solium",
     "eslint": "eslint test/ migrations/",
