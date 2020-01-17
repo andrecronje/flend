@@ -17,14 +17,14 @@ contract LiquidityPool is ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public _collateral;
     mapping(address => mapping(address => uint256)) public _collateralTokens;
     mapping(address => address[]) public _collateralList;
-    //measured in ETH - slippage
+    //measured in fUSD
     mapping(address => uint256) public _collateralValue;
 
     // Debt data
     mapping(address => mapping(address => uint256)) public _debt;
     mapping(address => mapping(address => uint256)) public _debtTokens;
     mapping(address => address[]) public _debtList;
-    //measured in ETH + slippage
+    //measured in fUSD
     mapping(address => uint256) public _debtValue;
 
     //ftmAddress
@@ -166,13 +166,13 @@ contract LiquidityPool is ReentrancyGuard {
         require(_amount > 0, "amount must be greater than 0");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
 
-        _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
-        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
-        addDebtToList(_token, msg.sender);
-
         uint256 tokenValue = 0;
         tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
+
+        _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
+        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
+        addDebtToList(_token, msg.sender);
 
         uint256 collateralValue = calcCollateralValue(msg.sender);
         uint256 debtValue = calcDebtValue(msg.sender);
@@ -198,13 +198,13 @@ contract LiquidityPool is ReentrancyGuard {
         require(_amount > 0, "amount must be greater than 0");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
 
-        _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
-        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
-        addDebtToList(_token, msg.sender);
-
         uint256 tokenValue = 0;
         tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
+
+        _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
+        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
+        addDebtToList(_token, msg.sender);
 
         uint256 collateralValue = calcCollateralValue(msg.sender);
         uint256 debtValue = calcDebtValue(msg.sender);
