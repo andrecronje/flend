@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interface/FPrice.sol";
+import "../interface/FPrice.sol";
 
 contract LiquidityPool is ReentrancyGuard {
     using SafeMath for uint256;
@@ -24,9 +24,11 @@ contract LiquidityPool is ReentrancyGuard {
     //measured in ETH + slippage
     mapping(address => uint256) public _debtValue;
 
+    //ftmAddress
     function fAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
     }
+    //oracleAddress
     function oAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
     }
@@ -86,7 +88,7 @@ contract LiquidityPool is ReentrancyGuard {
     {
         uint256 results = 0;
         for (uint i = 0; i < _collateralList[addr].length; i++) {
-          results = IFPrice(oAddress()).getPrice(IERC20(_collateralList[addr][i]));
+          results = IFPrice(oAddress()).getPrice(_collateralList[addr][i]);
           collateralValue = collateralValue.add(results);
         }
     }
@@ -95,7 +97,7 @@ contract LiquidityPool is ReentrancyGuard {
     {
       uint256 results = 0;
       for (uint i = 0; i < _debtList[addr].length; i++) {
-        (results,) = IFPrice(oAddress()).getPrice(IERC20(_debtList[addr][i]));
+        results = IFPrice(oAddress()).getPrice(_debtList[addr][i]);
         debtValue = debtValue.add(results);
       }
     }
@@ -159,8 +161,8 @@ contract LiquidityPool is ReentrancyGuard {
         _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
         addDebtToList(_token, msg.sender);
 
-        uint256 tokenValue;
-        (tokenValue, ) = IFPrice(oAddress()).getPrice(IERC20(_token));
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
 
         uint256 collateralValue = calcCollateralValue(msg.sender);
