@@ -15,9 +15,6 @@ contract LiquidityPool is ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     struct EpochSnapshot {
-        mapping(address => uint256) debtValue;
-        mapping(address => mapping(address => uint256)) _debtTokens;
-
         uint256 endTime;
         uint256 duration;
         uint256 feePool;
@@ -35,7 +32,8 @@ contract LiquidityPool is ReentrancyGuard {
       } else {
           newSnapshot.duration = block.timestamp - epochSnapshots[currentEpoch - 1].endTime;
       }
-      newSnapshot.debtValue = _debtValue;
+      newSnapshot.feePool = feePool;
+      feePool = 0;
     }
 
 
