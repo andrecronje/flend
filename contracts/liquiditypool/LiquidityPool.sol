@@ -186,19 +186,20 @@ contract LiquidityPool is ReentrancyGuard {
     // Claim rewards in fUSD off of locked native denom
     // Fee 0.25%
     function claimDelegationRewards(uint256 maxEpochs) external nonReentrant {
+        require(maxEpochs > 0, "only positive epochs");
         // Get current fUSD value of native denom
         uint256 tokenValue = IFPrice(oAddress()).getPrice(fAddress());
         require(tokenValue > 0, "native denom has no value");
 
         uint256 fromEpoch = _claimedEpoch[msg.sender];
-        (uint256 pendingRewards, , uint256 untilEpoch) = SFC(SFCAddress()).calcDelegationRewards(fromEpoch, 0, maxEpochs);
+        (uint256 pendingRewards, , uint256 untilEpoch) = SFC(SFCAddress()).calcDelegationRewards(msg.sender, fromEpoch, maxEpochs);
         require(pendingRewards > 0, "no pending rewards");
 
         _claimed[msg.sender] = pendingRewards.add(_claimed[msg.sender]);
         _claimedEpoch[msg.sender] = untilEpoch;
 
         // 300% collateral value
-        uint256 _amount = rewards.mul(tokenValue).div(3);
+        uint256 _amount = pendingRewards.mul(tokenValue).div(3);
         uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
@@ -212,18 +213,19 @@ contract LiquidityPool is ReentrancyGuard {
     // Claim validator rewards in fUSD off of locked native denom
     // Fee 0.25%
     function claimValidatorRewards(uint256 maxEpochs) external nonReentrant {
+        require(maxEpochs > 0, "only positive epochs");
+
         uint256 tokenValue = IFPrice(oAddress()).getPrice(fAddress());
         require(tokenValue > 0, "native denom has no value");
-
         uint256 fromEpoch = _claimedEpoch[msg.sender];
         uint256 stakerID = SFC(SFCAddress()).getStakerID(msg.sender);
-        (uint256 pendingRewards, , uint256 untilEpoch) = SFC(SFCAddress()).calcValidatorRewards(stakerID, 0, maxEpochs);
-        require(pendingRewards > 0 "no pending rewards");
+        (uint256 pendingRewards, , uint256 untilEpoch) = SFC(SFCAddress()).calcValidatorRewards(stakerID, fromEpoch, maxEpochs);
+        require(pendingRewards > 0, "no pending rewards");
 
         _claimed[msg.sender] = pendingRewards.add(_claimed[msg.sender]);
         _claimedEpoch[msg.sender] = untilEpoch;
 
-        uint256 _amount = rewards.mul(tokenValue).div(3);
+        uint256 _amount = pendingRewards.mul(tokenValue).div(3);
         uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
