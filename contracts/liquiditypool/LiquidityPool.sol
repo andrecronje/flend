@@ -200,6 +200,7 @@ contract LiquidityPool is ReentrancyGuard {
     }
 
     // Deposit assets as collateral
+    // No fee, gain interest on deposited value
     function deposit(address _token, uint256 _amount)
         external
         payable
@@ -231,6 +232,8 @@ contract LiquidityPool is ReentrancyGuard {
         emit Deposit(_token, msg.sender, _amount, block.timestamp);
     }
 
+    // Withdraw any deposited collateral that has a value from the contract
+    // No fee
     function withdraw(address _token, uint256 _amount)
         external
         nonReentrant
@@ -261,15 +264,17 @@ contract LiquidityPool is ReentrancyGuard {
         emit Withdraw(_token, msg.sender, _amount, block.timestamp);
     }
 
+    // Fee 0.25%
     function buy(address _token, uint256 _amount)
         external
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
         require(_token != fAddress(), "native denom");
+        require(_token != fUSD(), "fusd denom");
 
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
-        require(tokenValue > 0, "debt token has no value");
+        require(tokenValue > 0, "token has no value");
 
         uint256 buyValue = _amount.mul(tokenValue);
         uint256 balance = ERC20(fUSD()).balanceOf(msg.sender);
@@ -285,15 +290,17 @@ contract LiquidityPool is ReentrancyGuard {
         emit Buy(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
 
+    // Fee 0.25%
     function sell(address _token, uint256 _amount)
         external
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
         require(_token != fAddress(), "native denom");
+        require(_token != fUSD(), "fusd denom");
 
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
-        require(tokenValue > 0, "debt token has no value");
+        require(tokenValue > 0, "token has no value");
 
         uint256 sellValue = _amount.mul(tokenValue);
 
@@ -304,12 +311,20 @@ contract LiquidityPool is ReentrancyGuard {
         ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         // Mint and transfer fUSD
-        ERC20Mintable(fUSD()).mint(address(this), sellValue);
+        uint256 balance = ERC20(_token).balanceOf(address(this));
+        if (balance < _amount) {
+          // Mint fUSD and increase global debt
+          // This is the value of fUSD to native denom ratio
+          // totalSupply(fUSD) / 2 = claimable value of native denom
+          ERC20Mintable(fUSD()).mint(address(this), _amount.sub(balance));
+        }
         ERC20(fUSD()).safeTransfer(msg.sender, _amount);
 
         emit Sell(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
 
+    // Fee 4% per annum
+    // Initiation fee 0.25% of total value
     function borrow(address _token, uint256 _amount)
         external
         nonReentrant
@@ -342,6 +357,8 @@ contract LiquidityPool is ReentrancyGuard {
         emit Borrow(_token, msg.sender, _amount, block.timestamp);
     }
 
+    // Fee 6% per annum
+    // Initiation fee 0.25% of total value
     function mint(address _token, uint256 _amount)
         external
         nonReentrant
@@ -349,6 +366,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(_amount > 0, "amount must be greater than 0");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
         require(_token != fAddress(), "native denom");
+        require(_token != fUSD(), "fusd denom");
 
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
@@ -371,6 +389,7 @@ contract LiquidityPool is ReentrancyGuard {
         emit Mint(_token, msg.sender, _amount, block.timestamp);
     }
 
+    // No fee
     function burn(address _token, uint256 _amount)
         external
         payable
@@ -390,6 +409,7 @@ contract LiquidityPool is ReentrancyGuard {
         emit Burn(_token, msg.sender, _amount, block.timestamp);
     }
 
+    // No fee
     function repay(address _token, uint256 _amount)
         external
         payable
@@ -410,7 +430,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
-
+    
     function liquidate(address _owner)
         external
         nonReentrant
