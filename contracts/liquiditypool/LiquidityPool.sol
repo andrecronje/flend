@@ -31,7 +31,7 @@ contract LiquidityPool is ReentrancyGuard {
     // Claimed balances
     mapping (address => uint256) private _claimed;
 
-    //ftmAddress
+    //native denom address
     function fAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
     }
@@ -51,6 +51,7 @@ contract LiquidityPool is ReentrancyGuard {
         return 0xC17518AE5dAD82B8fc8b56Fe0295881c30848829;
     }
 
+    // Tracks list of user collateral
     function addCollateralToList(address _token, address _owner) internal {
         bool tokenAlreadyAdded = false;
         address[] memory tokenList = _collateralList[_owner];
@@ -61,6 +62,7 @@ contract LiquidityPool is ReentrancyGuard {
         if (!tokenAlreadyAdded) _collateralList[_owner].push(_token);
     }
 
+    // Tracks list of user debt
     function addDebtToList(address _token, address _owner) internal {
         bool tokenAlreadyAdded = false;
         address[] memory tokenList = _debtList[_owner];
@@ -136,54 +138,57 @@ contract LiquidityPool is ReentrancyGuard {
         uint256 _timestamp
     );
 
+    // Calculate the current collateral value of all assets for user
     function calcCollateralValue(address addr) public view returns(uint256 collateralValue)
     {
-        uint256 results = 0;
         for (uint i = 0; i < _collateralList[addr].length; i++) {
-          results = IFPrice(oAddress()).getPrice(_collateralList[addr][i]);
+          uint256 results = IFPrice(oAddress()).getPrice(_collateralList[addr][i]);
           collateralValue = collateralValue.add(results);
         }
         collateralValue = collateralValue.div(2);
     }
 
+    // Calculate the current debt value of all assets for user
     function calcDebtValue(address addr) public view returns(uint256 debtValue)
     {
-      uint256 results = 0;
       for (uint i = 0; i < _debtList[addr].length; i++) {
-        results = IFPrice(oAddress()).getPrice(_debtList[addr][i]);
+        uint256 results = IFPrice(oAddress()).getPrice(_debtList[addr][i]);
         debtValue = debtValue.add(results);
       }
     }
 
+    // Claim rewards in fUSD off of locked native denom
     function claimDelegationRewards(uint256 maxEpochs) external nonReentrant {
-        uint256 pendingRewards = 0;
-        (pendingRewards, , ) = SFC(SFCAddress()).calcDelegationRewards(msg.sender, 0, maxEpochs);
+        (uint256 pendingRewards, , ) = SFC(SFCAddress()).calcDelegationRewards(msg.sender, 0, maxEpochs);
         require(pendingRewards > _claimed[msg.sender], "no pending rewards");
+
         uint256 rewards = pendingRewards.sub(_claimed[msg.sender]);
         _claimed[msg.sender] = pendingRewards;
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(fAddress());
+        // Get current fUSD value of native denom
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(fAddress());
         require(tokenValue > 0, "native denom has no value");
 
+        // 200% collateral value
         uint256 _amount = rewards.div(2).mul(tokenValue);
 
+        // Mint 50% worth of fUSD and transfer
         ERC20Mintable(fUSD()).mint(address(this), _amount);
         ERC20(fUSD()).safeTransfer(msg.sender, _amount);
 
         emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
     }
 
+    // Claim validator rewards in fUSD off of locked native denom
     function claimValidatorRewards(uint256 maxEpochs) external nonReentrant {
         uint256 stakerID = SFC(SFCAddress()).getStakerID(msg.sender);
-        uint256 pendingRewards = 0;
-        (pendingRewards, , ) = SFC(SFCAddress()).calcValidatorRewards(stakerID, 0, maxEpochs);
+        (uint256 pendingRewards, , ) = SFC(SFCAddress()).calcValidatorRewards(stakerID, 0, maxEpochs);
         require(pendingRewards > _claimed[msg.sender], "no pending rewards");
+
         uint256 rewards = pendingRewards.sub(_claimed[msg.sender]);
         _claimed[msg.sender] = pendingRewards;
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(fAddress());
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(fAddress());
         require(tokenValue > 0, "native denom has no value");
 
         uint256 _amount = rewards.div(2).mul(tokenValue);
@@ -194,6 +199,7 @@ contract LiquidityPool is ReentrancyGuard {
         emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
     }
 
+    // Deposit assets as collateral
     function deposit(address _token, uint256 _amount)
         external
         payable
@@ -201,13 +207,18 @@ contract LiquidityPool is ReentrancyGuard {
     {
         require(_amount > 0, "amount must be greater than 0");
 
+        // Mapping of token => users
+        // Mapping of users => tokens
+
         _collateral[_token][msg.sender] = _collateral[_token][msg.sender].add(_amount);
         _collateralTokens[msg.sender][_token] = _collateralTokens[msg.sender][_token].add(_amount);
         addCollateralToList(_token, msg.sender);
+
         _collateralValue[msg.sender] = calcCollateralValue(msg.sender);
 
+        // Non native denom
         if (_token != fAddress()) {
-            require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
+            require(msg.value == 0, "user is sending native denom along with the token transfer.");
             ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         } else {
             require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
@@ -228,14 +239,17 @@ contract LiquidityPool is ReentrancyGuard {
 
         _collateral[_token][msg.sender] = _collateral[_token][msg.sender].sub(_amount, "withdraw amount exceeds balance");
         _collateralTokens[msg.sender][_token] = _collateralTokens[msg.sender][_token].sub(_amount, "withdraw amount exceeds balance");
+
         uint256 collateralValue = calcCollateralValue(msg.sender);
         uint256 debtValue = calcDebtValue(msg.sender);
+
         require(collateralValue > debtValue, "withdraw would liquidate holdings");
+
         _collateralValue[msg.sender] = collateralValue;
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            uint256 balance = ERC20(_token).balanceOf(address(this);
+            uint256 balance = ERC20(_token).balanceOf(address(this));
             if (balance < _amount) {
               ERC20Mintable(_token).mint(address(this), _amount.sub(balance));
             }
@@ -254,8 +268,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(_amount > 0, "amount must be greater than 0");
         require(_token != fAddress(), "native denom");
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
 
         uint256 buyValue = _amount.mul(tokenValue);
@@ -279,8 +292,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(_amount > 0, "amount must be greater than 0");
         require(_token != fAddress(), "native denom");
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
 
         uint256 sellValue = _amount.mul(tokenValue);
@@ -306,8 +318,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(_token != fAddress(), "native denom not borrowable");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
 
         _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
@@ -322,7 +333,7 @@ contract LiquidityPool is ReentrancyGuard {
         _collateralValue[msg.sender] = collateralValue;
         _debtValue[msg.sender] = debtValue;
 
-        uint256 balance = ERC20(_token).balanceOf(address(this);
+        uint256 balance = ERC20(_token).balanceOf(address(this));
         if (balance < _amount) {
           ERC20Mintable(_token).mint(address(this), _amount.sub(balance));
         }
@@ -339,8 +350,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
         require(_token != fAddress(), "native denom");
 
-        uint256 tokenValue = 0;
-        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
 
         _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
