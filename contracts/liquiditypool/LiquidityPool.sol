@@ -10,6 +10,7 @@ import "../interface/FPrice.sol";
 contract LiquidityPool is ReentrancyGuard {
     using SafeMath for uint256;
     using Address for address;
+    using SafeERC20 for ERC20;
 
     // Collateral data
     mapping(address => mapping(address => uint256)) public _collateral;
