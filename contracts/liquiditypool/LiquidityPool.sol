@@ -4,6 +4,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../interface/FPrice.sol";
 
@@ -84,6 +85,13 @@ contract LiquidityPool is ReentrancyGuard {
         uint256 _timestamp
     );
 
+    event Mint(
+        address indexed _token,
+        address indexed _user,
+        uint256 _amount,
+        uint256 _timestamp
+    );
+
     function calcCollateralValue(address addr) public view returns(uint256 collateralValue)
     {
         uint256 results = 0;
@@ -91,6 +99,7 @@ contract LiquidityPool is ReentrancyGuard {
           results = IFPrice(oAddress()).getPrice(_collateralList[addr][i]);
           collateralValue = collateralValue.add(results);
         }
+        collateralValue = collateralValue.div(2);
     }
 
     function calcDebtValue(address addr) public view returns(uint256 debtValue)
@@ -180,6 +189,65 @@ contract LiquidityPool is ReentrancyGuard {
             require(result, "transfer of ETH failed");
         }
         emit Borrow(_token, msg.sender, _amount, block.timestamp);
+    }
+
+    function mint(address _token, uint256 _amount)
+        external
+        nonReentrant
+    {
+        require(_amount > 0, "amount must be greater than 0");
+        require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
+
+        _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
+        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
+        addDebtToList(_token, msg.sender);
+
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        require(tokenValue > 0, "debt token has no value");
+
+        uint256 collateralValue = calcCollateralValue(msg.sender);
+        uint256 debtValue = calcDebtValue(msg.sender);
+
+        require(collateralValue > debtValue, "insufficient collateral");
+
+        _collateralValue[msg.sender] = collateralValue;
+        _debtValue[msg.sender] = debtValue;
+        require(_token != fAddress(), "native denom");
+
+        ERC20Mintable(_token).mint(address(this), _amount);
+        ERC20(_token).safeTransfer(msg.sender, _amount);
+
+        emit Mint(_token, msg.sender, _amount, block.timestamp);
+    }
+
+    function burn(address _token, uint256 _amount)
+        external
+        payable
+        nonReentrant
+    {
+        require(_amount > 0, "amount must be greater than 0");
+
+
+        _debt[_token][msg.sender] = _debt[_token][msg.sender].sub(_amount, "insufficient debt outstanding");
+        _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].sub(_amount, "insufficient debt outstanding");
+
+        _collateralValue[msg.sender] = calcCollateralValue(msg.sender);
+        _debtValue[msg.sender] = calcDebtValue(msg.sender);
+
+        if (_token != fAddress()) {
+            require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
+            ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+        } else {
+            require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
+            if (msg.value > _amount) {
+                uint256 excessAmount = msg.value.sub(_amount);
+                (bool result, ) = msg.sender.call.value(excessAmount).gas(50000)("");
+                require(result, "transfer of ETH failed");
+            }
+        }
+
+        emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
 
     function repay(address _token, uint256 _amount)
