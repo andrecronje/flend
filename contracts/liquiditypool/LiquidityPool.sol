@@ -14,6 +14,9 @@ contract LiquidityPool is ReentrancyGuard {
     using Address for address;
     using SafeERC20 for ERC20;
 
+
+    uint256 public feePool;
+
     // Collateral data
     mapping(address => mapping(address => uint256)) public _collateral;
     mapping(address => mapping(address => uint256)) public _collateralTokens;
@@ -290,7 +293,8 @@ contract LiquidityPool is ReentrancyGuard {
         emit Buy(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
 
-    // Fee 0.25%
+    // Sell an owned asset for fusd
+    // Fee 0.025%
     function sell(address _token, uint256 _amount)
         external
         nonReentrant
@@ -299,26 +303,26 @@ contract LiquidityPool is ReentrancyGuard {
         require(_token != fAddress(), "native denom");
         require(_token != fUSD(), "fusd denom");
 
+        uint256 balance = ERC20(_token).balanceOf(msg.sender);
+        require(balance >= _amount, "insufficient funds");
+
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "token has no value");
 
         uint256 sellValue = _amount.mul(tokenValue);
 
-        uint256 balance = ERC20(_token).balanceOf(msg.sender);
-        require(balance >= _amount, "insufficient funds");
-
         // Claim token
         ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         // Mint and transfer fUSD
-        uint256 balance = ERC20(_token).balanceOf(address(this));
-        if (balance < _amount) {
+        balance = ERC20(_token).balanceOf(address(this));
+        if (balance < sellValue) {
           // Mint fUSD and increase global debt
           // This is the value of fUSD to native denom ratio
           // totalSupply(fUSD) / 2 = claimable value of native denom
-          ERC20Mintable(fUSD()).mint(address(this), _amount.sub(balance));
+          ERC20Mintable(fUSD()).mint(address(this), sellValue.sub(balance));
         }
-        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+        ERC20(fUSD()).safeTransfer(msg.sender, sellValue);
 
         emit Sell(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
@@ -335,6 +339,12 @@ contract LiquidityPool is ReentrancyGuard {
 
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
         require(tokenValue > 0, "debt token has no value");
+
+        // Calculate 0.25% initiation fee
+        uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
+        _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
+        addDebtToList(fUSD(), msg.sender);
 
         _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
         _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
@@ -369,8 +379,15 @@ contract LiquidityPool is ReentrancyGuard {
         require(_token != fUSD(), "fusd denom");
 
         uint256 tokenValue = IFPrice(oAddress()).getPrice(_token);
-        require(tokenValue > 0, "debt token has no value");
+        require(tokenValue > 0, "token has no value");
 
+        // Calculate 0.25% initiation fee
+        uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
+        _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
+        addDebtToList(fUSD(), msg.sender);
+
+        // Accure debt into debt values
         _debt[_token][msg.sender] = _debt[_token][msg.sender].add(_amount);
         _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].add(_amount);
         addDebtToList(_token, msg.sender);
@@ -430,7 +447,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
-    
+
     function liquidate(address _owner)
         external
         nonReentrant
