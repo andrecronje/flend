@@ -225,6 +225,7 @@ contract LiquidityPool is ReentrancyGuard {
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
+
         _collateral[_token][msg.sender] = _collateral[_token][msg.sender].sub(_amount, "withdraw amount exceeds balance");
         _collateralTokens[msg.sender][_token] = _collateralTokens[msg.sender][_token].sub(_amount, "withdraw amount exceeds balance");
         uint256 collateralValue = calcCollateralValue(msg.sender);
@@ -234,6 +235,10 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
+            uint256 balance = ERC20(_token).balanceOf(address(this);
+            if (balance < _amount) {
+              ERC20Mintable(_token).mint(address(this), _amount.sub(balance));
+            }
             ERC20(_token).safeTransfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
@@ -298,6 +303,7 @@ contract LiquidityPool is ReentrancyGuard {
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
+        require(_token != fAddress(), "native denom not borrowable");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
 
         uint256 tokenValue = 0;
@@ -316,12 +322,12 @@ contract LiquidityPool is ReentrancyGuard {
         _collateralValue[msg.sender] = collateralValue;
         _debtValue[msg.sender] = debtValue;
 
-        if (_token != fAddress()) {
-            ERC20(_token).safeTransfer(msg.sender, _amount);
-        } else {
-            (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
-            require(result, "transfer of ETH failed");
+        uint256 balance = ERC20(_token).balanceOf(address(this);
+        if (balance < _amount) {
+          ERC20Mintable(_token).mint(address(this), _amount.sub(balance));
         }
+        ERC20(_token).safeTransfer(msg.sender, _amount);
+
         emit Borrow(_token, msg.sender, _amount, block.timestamp);
     }
 
@@ -380,6 +386,7 @@ contract LiquidityPool is ReentrancyGuard {
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
+        require(_token != fAddress(), "native denom not borrowable");
 
 
         _debt[_token][msg.sender] = _debt[_token][msg.sender].sub(_amount, "insufficient debt outstanding");
@@ -388,17 +395,8 @@ contract LiquidityPool is ReentrancyGuard {
         _collateralValue[msg.sender] = calcCollateralValue(msg.sender);
         _debtValue[msg.sender] = calcDebtValue(msg.sender);
 
-        if (_token != fAddress()) {
-            require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
-            ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
-        } else {
-            require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
-            if (msg.value > _amount) {
-                uint256 excessAmount = msg.value.sub(_amount);
-                (bool result, ) = msg.sender.call.value(excessAmount).gas(50000)("");
-                require(result, "transfer of ETH failed");
-            }
-        }
+        require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
+        ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
