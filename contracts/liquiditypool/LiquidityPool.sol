@@ -404,7 +404,7 @@ contract LiquidityPool is ReentrancyGuard {
 
     // Fee 6% per annum
     // Initiation fee 0.25% of total value
-    function mint(address _token, uint256 _amount)
+    /*function mint(address _token, uint256 _amount)
         external
         nonReentrant
     {
@@ -440,10 +440,10 @@ contract LiquidityPool is ReentrancyGuard {
         ERC20(_token).safeTransfer(msg.sender, _amount);
 
         emit Mint(_token, msg.sender, _amount, block.timestamp);
-    }
+    }*/
 
     // No fee
-    function burn(address _token, uint256 _amount)
+    /*function burn(address _token, uint256 _amount)
         external
         payable
         nonReentrant
@@ -460,7 +460,7 @@ contract LiquidityPool is ReentrancyGuard {
         ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         emit Burn(_token, msg.sender, _amount, block.timestamp);
-    }
+    }*/
 
     // No fee
     function repay(address _token, uint256 _amount)
