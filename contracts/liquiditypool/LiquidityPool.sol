@@ -3,7 +3,7 @@ pragma solidity ^0.5.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../interface/FPrice.sol";
 
@@ -117,7 +117,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         if (_token != fAddress()) {
             require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
-            IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+            ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         } else {
             require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
             if (msg.value > _amount) {
@@ -143,7 +143,7 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            IERC20(_token).safeTransfer(msg.sender, _amount);
+            ERC20(_token).safeTransfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
             require(result, "transfer of ETH failed");
@@ -175,7 +175,7 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            IERC20(_token).safeTansfer(msg.sender, _amount);
+            ERC20(_token).safeTansfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
             require(result, "transfer of ETH failed");
@@ -199,7 +199,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         if (_token != fAddress()) {
             require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
-            IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+            ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         } else {
             require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
             if (msg.value > _amount) {
@@ -225,8 +225,8 @@ contract LiquidityPool is ReentrancyGuard {
         uint256 collateralValue = 0;
         uint256 results = 0;
         for (uint i = 0; i < _collateralList[_owner].length; i++) {
-          (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_collateralList[_owner][i]), IERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], 1, 0);
-          OneSplit(sAddress()).goodSwap(IERC20(_collateralList[_owner][i]), IERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
+          (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_collateralList[_owner][i]), ERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], 1, 0);
+          OneSplit(sAddress()).goodSwap(ERC20(_collateralList[_owner][i]), ERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
           _collateral[_collateralList[_owner][i]][_owner] = _collateral[_collateralList[_owner][i]][_owner].sub(_collateralTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
           _collateralTokens[_owner][_collateralList[_owner][i]] = _collateralTokens[_owner][_collateralList[_owner][i]].sub(_collateralTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
           sold = sold.add(results);
@@ -235,10 +235,10 @@ contract LiquidityPool is ReentrancyGuard {
 
         uint256 debtValue = 0;
         for (uint i = 0; i < _debtList[_owner].length; i++) {
-          (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_debtList[_owner][i]), IERC20(fAddress()), _debtTokens[_owner][_debtList[_owner][i]], 1, 0);
+          (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_debtList[_owner][i]), ERC20(fAddress()), _debtTokens[_owner][_debtList[_owner][i]], 1, 0);
           sold = sold.sub(results);
           if (sold >= 0) {
-            OneSplit(sAddress()).goodSwap(IERC20(fAddress()), IERC20(_debtList[_owner][i]), _debtTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
+            OneSplit(sAddress()).goodSwap(ERC20(fAddress()), ERC20(_debtList[_owner][i]), _debtTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
             _debt[_collateralList[_owner][i]][_owner] = _debt[_collateralList[_owner][i]][_owner].sub(_debt[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
             _debtTokens[_owner][_collateralList[_owner][i]] = _debtTokens[_owner][_collateralList[_owner][i]].sub(_debtTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
             debtValue = debtValue.add(results);
@@ -259,16 +259,16 @@ contract LiquidityPool is ReentrancyGuard {
 
         uint256 sold = 0;
         uint256 results = 0;
-        (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_token), IERC20(fAddress()), _collateralTokens[_owner][_token], 1, 0);
-        OneSplit(sAddress()).goodSwap(IERC20(_token), IERC20(fAddress()), _collateralTokens[_owner][_token], results, 1, 0);
+        (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_token), ERC20(fAddress()), _collateralTokens[_owner][_token], 1, 0);
+        OneSplit(sAddress()).goodSwap(ERC20(_token), ERC20(fAddress()), _collateralTokens[_owner][_token], results, 1, 0);
         _collateral[_token][_owner] = _collateral[_token][_owner].sub(_collateralTokens[_owner][_token], "liquidation exceeds balance");
         _collateralTokens[_owner][_token] = _collateralTokens[_owner][_token].sub(_collateralTokens[_owner][_token], "liquidation exceeds balance");
         sold = sold.add(results);
 
-        (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_token), IERC20(fAddress()), _debtTokens[_owner][_token], 1, 0);
+        (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_token), ERC20(fAddress()), _debtTokens[_owner][_token], 1, 0);
         sold = sold.sub(results);
         if (sold >= 0) {
-          OneSplit(sAddress()).goodSwap(IERC20(fAddress()), IERC20(_token), _debtTokens[_owner][_token], results, 1, 0);
+          OneSplit(sAddress()).goodSwap(ERC20(fAddress()), ERC20(_token), _debtTokens[_owner][_token], results, 1, 0);
           _debt[_token][_owner] = _debt[_token][_owner].sub(_debt[_owner][_token], "liquidation exceeds balance");
           _debtTokens[_owner][_token] = _debtTokens[_owner][_token].sub(_debtTokens[_owner][_token], "liquidation exceeds balance");
         }
