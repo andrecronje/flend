@@ -176,7 +176,7 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            ERC20(_token).safeTansfer(msg.sender, _amount);
+            ERC20(_token).safeTransfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
             require(result, "transfer of ETH failed");
