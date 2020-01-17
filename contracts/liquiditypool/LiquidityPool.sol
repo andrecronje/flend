@@ -175,7 +175,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         // 200% collateral value
         uint256 _amount = rewards.div(2).mul(tokenValue);
-        uint256 fee = _amount.mul(25).div(100);
+        uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
         // Mint 50% worth of fUSD and transfer
@@ -199,7 +199,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "native denom has no value");
 
         uint256 _amount = rewards.div(2).mul(tokenValue);
-        uint256 fee = _amount.mul(25).div(100);
+        uint256 fee = _amount.mul(25).div(10000);
         feePool = feePool.add(fee);
 
         ERC20Mintable(fUSD()).mint(address(this), _amount);
@@ -286,7 +286,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "token has no value");
 
         uint256 buyValue = _amount.mul(tokenValue);
-        uint256 fee = buyValue.mul(25).div(100);
+        uint256 fee = buyValue.mul(25).div(10000);
         uint256 buyValueIncFee = buyValue.add(fee);
         uint256 balance = ERC20(fUSD()).balanceOf(msg.sender);
         require(balance >= buyValueIncFee, "insufficient funds");
@@ -332,7 +332,7 @@ contract LiquidityPool is ReentrancyGuard {
           // totalSupply(fUSD) / 2 = claimable value of native denom
           ERC20Mintable(fUSD()).mint(address(this), sellValue.sub(balance));
         }
-        uint256 fee = sellValue.mul(25).div(100);
+        uint256 fee = sellValue.mul(25).div(10000);
         feePool = feePool.add(fee);
         ERC20(fUSD()).safeTransfer(msg.sender, sellValue.sub(fee));
 
@@ -353,7 +353,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "debt token has no value");
 
         // Calculate 0.25% initiation fee
-        uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        uint256 fee = _amount.mul(tokenValue).mul(25).div(10000);
         feePool = feePool.add(fee);
         _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
         _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
@@ -395,7 +395,7 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "token has no value");
 
         // Calculate 0.25% initiation fee
-        uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        uint256 fee = _amount.mul(tokenValue).mul(25).div(10000);
         feePool = feePool.add(fee);
         _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
         _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
