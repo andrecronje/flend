@@ -30,12 +30,10 @@ contract LiquidityPool is ReentrancyGuard {
     function fAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
     }
+
     //oracleAddress
     function oAddress() internal pure returns(address) {
-        return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
-    }
-    function sAddress() internal pure returns(address) {
-        return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+        return 0xC17518AE5dAD82B8fc8b56Fe0295881c30848829;
     }
 
     function addCollateralToList(address _token, address _owner) internal {
@@ -213,7 +211,7 @@ contract LiquidityPool is ReentrancyGuard {
         emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
 
-    /*function liquidate(address _owner)
+    function liquidate(address _owner)
         external
         nonReentrant
     {
@@ -222,31 +220,18 @@ contract LiquidityPool is ReentrancyGuard {
 
         require(_collateralValue[_owner] < _debtValue[_owner], "insufficient debt to liquidate");
 
-        uint256 sold = 0;
-        uint256 collateralValue = 0;
-        uint256 results = 0;
         for (uint i = 0; i < _collateralList[_owner].length; i++) {
-          (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_collateralList[_owner][i]), ERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], 1, 0);
-          OneSplit(sAddress()).goodSwap(ERC20(_collateralList[_owner][i]), ERC20(fAddress()), _collateralTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
           _collateral[_collateralList[_owner][i]][_owner] = _collateral[_collateralList[_owner][i]][_owner].sub(_collateralTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
           _collateralTokens[_owner][_collateralList[_owner][i]] = _collateralTokens[_owner][_collateralList[_owner][i]].sub(_collateralTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
-          sold = sold.add(results);
-          collateralValue = collateralValue.add(results);
         }
 
-        uint256 debtValue = 0;
         for (uint i = 0; i < _debtList[_owner].length; i++) {
-          (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_debtList[_owner][i]), ERC20(fAddress()), _debtTokens[_owner][_debtList[_owner][i]], 1, 0);
-          sold = sold.sub(results);
-          if (sold >= 0) {
-            OneSplit(sAddress()).goodSwap(ERC20(fAddress()), ERC20(_debtList[_owner][i]), _debtTokens[_owner][_collateralList[_owner][i]], results, 1, 0);
-            _debt[_collateralList[_owner][i]][_owner] = _debt[_collateralList[_owner][i]][_owner].sub(_debt[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
-            _debtTokens[_owner][_collateralList[_owner][i]] = _debtTokens[_owner][_collateralList[_owner][i]].sub(_debtTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
-            debtValue = debtValue.add(results);
-          }
+          _debt[_collateralList[_owner][i]][_owner] = _debt[_collateralList[_owner][i]][_owner].sub(_debt[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
+          _debtTokens[_owner][_collateralList[_owner][i]] = _debtTokens[_owner][_collateralList[_owner][i]].sub(_debtTokens[_owner][_collateralList[_owner][i]], "liquidation exceeds balance");
         }
-        _collateralValue[_owner] = collateralValue;
-        _debtValue[_owner] = debtValue;
+
+        _collateralValue[_owner] = calcCollateralValue(_owner);
+        _debtValue[_owner] = calcDebtValue(_owner);
     }
 
     function liquidateToken(address _owner, address _token)
@@ -258,20 +243,13 @@ contract LiquidityPool is ReentrancyGuard {
 
         require(_collateralValue[_owner] < _debtValue[_owner], "insufficient debt to liquidate");
 
-        uint256 sold = 0;
-        uint256 results = 0;
-        (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_token), ERC20(fAddress()), _collateralTokens[_owner][_token], 1, 0);
-        OneSplit(sAddress()).goodSwap(ERC20(_token), ERC20(fAddress()), _collateralTokens[_owner][_token], results, 1, 0);
         _collateral[_token][_owner] = _collateral[_token][_owner].sub(_collateralTokens[_owner][_token], "liquidation exceeds balance");
         _collateralTokens[_owner][_token] = _collateralTokens[_owner][_token].sub(_collateralTokens[_owner][_token], "liquidation exceeds balance");
-        sold = sold.add(results);
 
-        (results,) = OneSplit(sAddress()).getExpectedReturn(ERC20(_token), ERC20(fAddress()), _debtTokens[_owner][_token], 1, 0);
-        sold = sold.sub(results);
-        if (sold >= 0) {
-          OneSplit(sAddress()).goodSwap(ERC20(fAddress()), ERC20(_token), _debtTokens[_owner][_token], results, 1, 0);
-          _debt[_token][_owner] = _debt[_token][_owner].sub(_debt[_owner][_token], "liquidation exceeds balance");
-          _debtTokens[_owner][_token] = _debtTokens[_owner][_token].sub(_debtTokens[_owner][_token], "liquidation exceeds balance");
-        }
-    }*/
+        _debt[_token][_owner] = _debt[_token][_owner].sub(_debt[_owner][_token], "liquidation exceeds balance");
+        _debtTokens[_owner][_token] = _debtTokens[_owner][_token].sub(_debtTokens[_owner][_token], "liquidation exceeds balance");
+
+        _collateralValue[_owner] = calcCollateralValue(_owner);
+        _debtValue[_owner] = calcDebtValue(_owner);
+    }
 }
