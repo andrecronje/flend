@@ -37,6 +37,11 @@ contract LiquidityPool is ReentrancyGuard {
         return 0xC17518AE5dAD82B8fc8b56Fe0295881c30848829;
     }
 
+    //fUSD
+    function fUSD() internal pure returns(address) {
+        return 0xC17518AE5dAD82B8fc8b56Fe0295881c30848829;
+    }
+
     function addCollateralToList(address _token, address _owner) internal {
         bool tokenAlreadyAdded = false;
         address[] memory tokenList = _collateralList[_owner];
@@ -89,6 +94,22 @@ contract LiquidityPool is ReentrancyGuard {
         address indexed _token,
         address indexed _user,
         uint256 _amount,
+        uint256 _timestamp
+    );
+
+    event Buy(
+        address indexed _token,
+        address indexed _user,
+        uint256 _amount,
+        uint256 _price,
+        uint256 _timestamp
+    );
+
+    event Sell(
+        address indexed _token,
+        address indexed _user,
+        uint256 _amount,
+        uint256 _price,
         uint256 _timestamp
     );
 
@@ -159,6 +180,57 @@ contract LiquidityPool is ReentrancyGuard {
         emit Withdraw(_token, msg.sender, _amount, block.timestamp);
     }
 
+    function buy(address _token, uint256 _amount)
+        external
+        nonReentrant
+    {
+        require(_amount > 0, "amount must be greater than 0");
+        require(_token != fAddress(), "native denom");
+
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        require(tokenValue > 0, "debt token has no value");
+
+        uint256 buyValue = _amount.mul(tokenValue);
+        uint256 balance = ERC20(fUSD()).balanceOf(msg.sender);
+        require(balance >= buyValue, "insufficient funds");
+
+        // Claim fUSD
+        ERC20(fUSD()).safeTransferFrom(msg.sender, address(this), buyValue);
+
+        // Mint and transfer token
+        ERC20Mintable(_token).mint(address(this), _amount);
+        ERC20(_token).safeTransfer(msg.sender, _amount);
+
+        emit Buy(_token, msg.sender, _amount, tokenValue, block.timestamp);
+    }
+
+    function sell(address _token, uint256 _amount)
+        external
+        nonReentrant
+    {
+        require(_amount > 0, "amount must be greater than 0");
+        require(_token != fAddress(), "native denom");
+
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(_token);
+        require(tokenValue > 0, "debt token has no value");
+
+        uint256 sellValue = _amount.mul(tokenValue);
+
+        uint256 balance = ERC20(_token).balanceOf(msg.sender);
+        require(balance >= _amount, "insufficient funds");
+
+        // Claim token
+        ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+
+        // Mint and transfer fUSD
+        ERC20Mintable(fUSD()).mint(address(this), sellValue);
+        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+
+        emit Sell(_token, msg.sender, _amount, tokenValue, block.timestamp);
+    }
+
     function borrow(address _token, uint256 _amount)
         external
         nonReentrant
@@ -197,6 +269,7 @@ contract LiquidityPool is ReentrancyGuard {
     {
         require(_amount > 0, "amount must be greater than 0");
         require(_collateralValue[msg.sender] > 0, "collateral must be greater than 0");
+        require(_token != fAddress(), "native denom");
 
         uint256 tokenValue = 0;
         tokenValue = IFPrice(oAddress()).getPrice(_token);
@@ -214,8 +287,6 @@ contract LiquidityPool is ReentrancyGuard {
         _collateralValue[msg.sender] = collateralValue;
         _debtValue[msg.sender] = debtValue;
 
-        require(_token != fAddress(), "native denom");
-
         ERC20Mintable(_token).mint(address(this), _amount);
         ERC20(_token).safeTransfer(msg.sender, _amount);
 
@@ -228,15 +299,13 @@ contract LiquidityPool is ReentrancyGuard {
         nonReentrant
     {
         require(_amount > 0, "amount must be greater than 0");
-
+        require(_token != fAddress(), "native denom");
 
         _debt[_token][msg.sender] = _debt[_token][msg.sender].sub(_amount, "insufficient debt outstanding");
         _debtTokens[msg.sender][_token] = _debtTokens[msg.sender][_token].sub(_amount, "insufficient debt outstanding");
 
         _collateralValue[msg.sender] = calcCollateralValue(msg.sender);
         _debtValue[msg.sender] = calcDebtValue(msg.sender);
-
-        require(_token != fAddress(), "native denom");
 
         ERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
