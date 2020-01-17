@@ -161,6 +161,7 @@ contract LiquidityPool is ReentrancyGuard {
     }
 
     // Claim rewards in fUSD off of locked native denom
+    // Fee 0.25%
     function claimDelegationRewards(uint256 maxEpochs) external nonReentrant {
         (uint256 pendingRewards, , ) = SFC(SFCAddress()).calcDelegationRewards(msg.sender, 0, maxEpochs);
         require(pendingRewards > _claimed[msg.sender], "no pending rewards");
@@ -174,15 +175,18 @@ contract LiquidityPool is ReentrancyGuard {
 
         // 200% collateral value
         uint256 _amount = rewards.div(2).mul(tokenValue);
+        uint256 fee = _amount.mul(25).div(100);
+        feePool = feePool.add(fee);
 
         // Mint 50% worth of fUSD and transfer
         ERC20Mintable(fUSD()).mint(address(this), _amount);
-        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+        ERC20(fUSD()).safeTransfer(msg.sender, _amount.sub(fee));
 
         emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
     }
 
     // Claim validator rewards in fUSD off of locked native denom
+    // Fee 0.25%
     function claimValidatorRewards(uint256 maxEpochs) external nonReentrant {
         uint256 stakerID = SFC(SFCAddress()).getStakerID(msg.sender);
         (uint256 pendingRewards, , ) = SFC(SFCAddress()).calcValidatorRewards(stakerID, 0, maxEpochs);
@@ -195,9 +199,11 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "native denom has no value");
 
         uint256 _amount = rewards.div(2).mul(tokenValue);
+        uint256 fee = _amount.mul(25).div(100);
+        feePool = feePool.add(fee);
 
         ERC20Mintable(fUSD()).mint(address(this), _amount);
-        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+        ERC20(fUSD()).safeTransfer(msg.sender, _amount.sub(fee));
 
         emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
     }
