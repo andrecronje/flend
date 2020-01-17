@@ -4,6 +4,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../interface/FPrice.sol";
 
 contract LiquidityPool is ReentrancyGuard {
@@ -116,7 +117,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         if (_token != fAddress()) {
             require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
-            IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+            IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         } else {
             require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
             if (msg.value > _amount) {
@@ -142,7 +143,7 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            IERC20(_token).transfer(msg.sender, _amount);
+            IERC20(_token).safeTransfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
             require(result, "transfer of ETH failed");
@@ -174,7 +175,7 @@ contract LiquidityPool is ReentrancyGuard {
         _debtValue[msg.sender] = debtValue;
 
         if (_token != fAddress()) {
-            IERC20(_token).transfer(msg.sender, _amount);
+            IERC20(_token).safeTansfer(msg.sender, _amount);
         } else {
             (bool result, ) = msg.sender.call.value(_amount).gas(50000)("");
             require(result, "transfer of ETH failed");
@@ -198,7 +199,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         if (_token != fAddress()) {
             require(msg.value == 0, "user is sending ETH along with the ERC20 transfer.");
-            IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+            IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         } else {
             require(msg.value >= _amount, "the amount and the value sent to deposit do not match");
             if (msg.value > _amount) {
