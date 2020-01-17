@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../interface/FPrice.sol";
+import "../interface/SFC.sol";
 
 contract LiquidityPool is ReentrancyGuard {
     using SafeMath for uint256;
@@ -17,19 +18,27 @@ contract LiquidityPool is ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public _collateral;
     mapping(address => mapping(address => uint256)) public _collateralTokens;
     mapping(address => address[]) public _collateralList;
-    //measured in fUSD
+    //Collateral measured in fUSD
     mapping(address => uint256) public _collateralValue;
 
     // Debt data
     mapping(address => mapping(address => uint256)) public _debt;
     mapping(address => mapping(address => uint256)) public _debtTokens;
     mapping(address => address[]) public _debtList;
-    //measured in fUSD
+    // Debt measured in fUSD
     mapping(address => uint256) public _debtValue;
+
+    // Claimed balances
+    mapping (address => uint256) private _claimed;
 
     //ftmAddress
     function fAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+    }
+
+    //ftmAddress
+    function SFCAddress() internal pure returns(address) {
+        return 0xFC00FACE00000000000000000000000000000000;
     }
 
     //oracleAddress
@@ -62,6 +71,13 @@ contract LiquidityPool is ReentrancyGuard {
         if (!tokenAlreadyAdded) _debtList[_owner].push(_token);
     }
 
+    event Claim(
+        address indexed _token,
+        address indexed _user,
+        uint256 _amount,
+        uint256 _timestamp
+    );
+
     event Deposit(
         address indexed _token,
         address indexed _user,
@@ -91,6 +107,13 @@ contract LiquidityPool is ReentrancyGuard {
     );
 
     event Mint(
+        address indexed _token,
+        address indexed _user,
+        uint256 _amount,
+        uint256 _timestamp
+    );
+
+    event Burn(
         address indexed _token,
         address indexed _user,
         uint256 _amount,
@@ -130,6 +153,45 @@ contract LiquidityPool is ReentrancyGuard {
         results = IFPrice(oAddress()).getPrice(_debtList[addr][i]);
         debtValue = debtValue.add(results);
       }
+    }
+
+    function claimDelegationRewards(uint256 maxEpochs) external nonReentrant {
+        uint256 pendingRewards = 0;
+        (pendingRewards, , ) = SFC(SFCAddress()).calcDelegationRewards(msg.sender, 0, maxEpochs);
+        require(pendingRewards > _claimed[msg.sender], "no pending rewards");
+        uint256 rewards = pendingRewards.sub(_claimed[msg.sender]);
+        _claimed[msg.sender] = pendingRewards;
+
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(fAddress());
+        require(tokenValue > 0, "native denom has no value");
+
+        uint256 _amount = rewards.div(2).mul(tokenValue);
+
+        ERC20Mintable(fUSD()).mint(address(this), _amount);
+        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+
+        emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
+    }
+
+    function claimValidatorRewards(uint256 maxEpochs) external nonReentrant {
+        uint256 stakerID = SFC(SFCAddress()).getStakerID(msg.sender);
+        uint256 pendingRewards = 0;
+        (pendingRewards, , ) = SFC(SFCAddress()).calcValidatorRewards(stakerID, 0, maxEpochs);
+        require(pendingRewards > _claimed[msg.sender], "no pending rewards");
+        uint256 rewards = pendingRewards.sub(_claimed[msg.sender]);
+        _claimed[msg.sender] = pendingRewards;
+
+        uint256 tokenValue = 0;
+        tokenValue = IFPrice(oAddress()).getPrice(fAddress());
+        require(tokenValue > 0, "native denom has no value");
+
+        uint256 _amount = rewards.div(2).mul(tokenValue);
+
+        ERC20Mintable(fUSD()).mint(address(this), _amount);
+        ERC20(fUSD()).safeTransfer(msg.sender, _amount);
+
+        emit Claim(fUSD(), msg.sender, _amount, block.timestamp);
     }
 
     function deposit(address _token, uint256 _amount)
