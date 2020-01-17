@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../OneSplit.sol";
+import "./interface/FPrice.sol";
 
 contract LiquidityPool is ReentrancyGuard {
     using SafeMath for uint256;
@@ -25,6 +25,9 @@ contract LiquidityPool is ReentrancyGuard {
     mapping(address => uint256) public _debtValue;
 
     function fAddress() internal pure returns(address) {
+        return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+    }
+    function oAddress() internal pure returns(address) {
         return 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
     }
     function sAddress() internal pure returns(address) {
@@ -83,7 +86,7 @@ contract LiquidityPool is ReentrancyGuard {
     {
         uint256 results = 0;
         for (uint i = 0; i < _collateralList[addr].length; i++) {
-          (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_collateralList[addr][i]), IERC20(fAddress()), _collateralTokens[addr][_collateralList[addr][i]], 1, 0);
+          results = IFPrice(oAddress()).getPrice(IERC20(_collateralList[addr][i]));
           collateralValue = collateralValue.add(results);
         }
     }
@@ -92,7 +95,7 @@ contract LiquidityPool is ReentrancyGuard {
     {
       uint256 results = 0;
       for (uint i = 0; i < _debtList[addr].length; i++) {
-        (results,) = OneSplit(sAddress()).getExpectedReturn(IERC20(_debtList[addr][i]), IERC20(fAddress()), _debtTokens[addr][_debtList[addr][i]], 1, 0);
+        (results,) = IFPrice(oAddress()).getPrice(IERC20(_debtList[addr][i]));
         debtValue = debtValue.add(results);
       }
     }
@@ -157,7 +160,7 @@ contract LiquidityPool is ReentrancyGuard {
         addDebtToList(_token, msg.sender);
 
         uint256 tokenValue;
-        (tokenValue, ) = OneSplit(sAddress()).getExpectedReturn(IERC20(_token), IERC20(fAddress()), _debtTokens[msg.sender][_token], 1, 0);
+        (tokenValue, ) = IFPrice(oAddress()).getPrice(IERC20(_token));
         require(tokenValue > 0, "debt token has no value");
 
         uint256 collateralValue = calcCollateralValue(msg.sender);
@@ -206,7 +209,7 @@ contract LiquidityPool is ReentrancyGuard {
         emit Repay(_token, msg.sender, _amount, block.timestamp);
     }
 
-    function liquidate(address _owner)
+    /*function liquidate(address _owner)
         external
         nonReentrant
     {
@@ -266,5 +269,5 @@ contract LiquidityPool is ReentrancyGuard {
           _debt[_token][_owner] = _debt[_token][_owner].sub(_debt[_owner][_token], "liquidation exceeds balance");
           _debtTokens[_owner][_token] = _debtTokens[_owner][_token].sub(_debtTokens[_owner][_token], "liquidation exceeds balance");
         }
-    }
+    }*/
 }
