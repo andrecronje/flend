@@ -280,21 +280,25 @@ contract LiquidityPool is ReentrancyGuard {
         require(tokenValue > 0, "token has no value");
 
         uint256 buyValue = _amount.mul(tokenValue);
+        uint256 fee = buyValue.mul(25).div(100);
+        uint256 buyValueIncFee = buyValue.add(fee);
         uint256 balance = ERC20(fUSD()).balanceOf(msg.sender);
-        require(balance >= buyValue, "insufficient funds");
+        require(balance >= buyValueIncFee, "insufficient funds");
 
         // Claim fUSD
-        ERC20(fUSD()).safeTransferFrom(msg.sender, address(this), buyValue);
+        ERC20(fUSD()).safeTransferFrom(msg.sender, address(this), buyValueIncFee);
 
         // Mint and transfer token
         ERC20Mintable(_token).mint(address(this), _amount);
         ERC20(_token).safeTransfer(msg.sender, _amount);
 
+        feePool = feePool.add(fee);
+
         emit Buy(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
 
     // Sell an owned asset for fusd
-    // Fee 0.025%
+    // Fee 0.25%
     function sell(address _token, uint256 _amount)
         external
         nonReentrant
@@ -322,7 +326,9 @@ contract LiquidityPool is ReentrancyGuard {
           // totalSupply(fUSD) / 2 = claimable value of native denom
           ERC20Mintable(fUSD()).mint(address(this), sellValue.sub(balance));
         }
-        ERC20(fUSD()).safeTransfer(msg.sender, sellValue);
+        uint256 fee = sellValue.mul(25).div(100);
+        feePool = feePool.add(fee);
+        ERC20(fUSD()).safeTransfer(msg.sender, sellValue.sub(fee));
 
         emit Sell(_token, msg.sender, _amount, tokenValue, block.timestamp);
     }
@@ -342,6 +348,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         // Calculate 0.25% initiation fee
         uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        feePool = feePool.add(fee);
         _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
         _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
         addDebtToList(fUSD(), msg.sender);
@@ -383,6 +390,7 @@ contract LiquidityPool is ReentrancyGuard {
 
         // Calculate 0.25% initiation fee
         uint256 fee = _amount.mul(tokenValue).mul(25).div(100);
+        feePool = feePool.add(fee);
         _debt[fUSD()][msg.sender] = _debt[fUSD()][msg.sender].add(fee);
         _debtTokens[msg.sender][fUSD()] = _debtTokens[msg.sender][fUSD()].add(fee);
         addDebtToList(fUSD(), msg.sender);
